@@ -8,7 +8,7 @@ from PIL import Image, ImageTk
 # Crear la ventana principal
 ventana = tk.Tk()
 ventana.title("HDFresnel_GOM")
-ventana.geometry("1200x600")
+ventana.geometry("1200x700")
 ventana.resizable(False,False)
 
 barra_menu = tk.Menu(ventana)
@@ -120,8 +120,8 @@ camara_frame.grid(
 camara_frame.rowconfigure(0, weight=1)
 camara_frame.columnconfigure(0, weight=1)
 
-image_pil1 = Image.open("profile.jpg")
-image_pil1=image_pil1.resize((300,200))
+image_pil1 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/profile.jpg")
+image_pil1=image_pil1.resize((400,250))
 image_tk1 = ImageTk.PhotoImage(image_pil1)
 
 camara = tk.Label(
@@ -157,8 +157,8 @@ holograma_frame.grid(
 holograma_frame.rowconfigure(0,weight=1)
 holograma_frame.columnconfigure(0,weight=1)
 
-image_pil2 = Image.open("Holograma.bmp")
-image_pil2 = image_pil2.resize((300,200))
+image_pil2 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/Holograma.bmp")
+image_pil2 = image_pil2.resize((400,250))
 image_tk2 = ImageTk.PhotoImage(image_pil2)
 
 holograma= tk.Label(
@@ -193,8 +193,8 @@ reconstruccion_frame.grid(
 reconstruccion_frame.rowconfigure(0,weight=1)
 reconstruccion_frame.columnconfigure(0,weight=1)
 
-image_pil3 = Image.open("Transformada_de_Fresnel.bmp")
-image_pil3 = image_pil3.resize((300,200))
+image_pil3 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/Transformada_de_Fresnel.bmp")
+image_pil3 = image_pil3.resize((400,250))
 image_tk3 = ImageTk.PhotoImage(image_pil3)
 
 reconstruccion = tk.Label(
@@ -228,8 +228,8 @@ filtrado_frame.grid(
 filtrado_frame.rowconfigure(0,weight=1)
 filtrado_frame.columnconfigure(0,weight=1)
 
-image_pil4 = Image.open("Transformada_de_Fresnel_Filtrado.bmp")
-image_pil4 = image_pil4.resize((300,200))
+image_pil4 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/Transformada_de_Fresnel_Filtrado.bmp")
+image_pil4 = image_pil4.resize((400,250))
 image_tk4 = ImageTk.PhotoImage(image_pil4)
 
 filtrado = tk.Label(
@@ -244,5 +244,152 @@ filtrado.grid(
     padx=10,
     pady=10
 )
+
+#Panel Derecho
+
+panel_derecho = tk.LabelFrame(
+    contenido,
+    text="CONTROLES",
+    width=220
+)
+
+panel_derecho.grid(
+    row=0,
+    column=1,
+    sticky="ns"
+)
+
+panel_derecho.grid_propagate(False)
+
+
+# Controles
+
+tk.Button(
+    panel_derecho,
+    text="Cámara off"
+).pack(
+    padx=10,
+    pady=(5,5)
+)
+
+tk.Label(
+    panel_derecho,
+    text="Dispositivos IDs"
+).pack(
+    anchor="w",
+    padx=10,
+    pady=(5,5)
+)
+
+dispositivos= ttk.Combobox(
+    panel_derecho,
+    values=["1","2","3"],
+    state = "readonly"
+)
+
+dispositivos.current(0)
+
+dispositivos.pack(
+    fill="x",
+    padx=10,
+    pady=5
+)
+
+
+# Formato
+
+tk.Label(
+    panel_derecho,
+    text="Formato:"
+).pack(
+    padx=10,
+    pady=(5,5)
+)
+
+
+formatos = ttk.Combobox(
+    panel_derecho,
+    values=[
+        "RGB24_1280x720",
+        "RGB24_640x480",
+        "GRAY8_1280x720"
+    ],
+    state = "readonly"
+)
+
+formatos.current(0)
+
+formatos.pack(
+    fill="x",
+    padx=10
+)
+
+# CPU / GPU
+
+procesador = tk.LabelFrame(
+    panel_derecho,
+    text = "Procesamiento"
+)
+
+procesador.pack(
+    fill="x",
+    padx=10,
+    pady=10
+)
+
+modo = tk.StringVar(value="CPU")
+
+tk.Radiobutton(
+    procesador,
+    text="CPU",
+    variable=modo,
+    value="CPU"
+).pack(side="left")
+
+
+tk.Radiobutton(
+    procesador,
+    text="GPU",
+    variable=modo,
+    value="GPU"
+).pack(side="right")
+
+# ROI
+
+roi = tk.Frame(
+    panel_derecho,
+    relief = "sunken",
+    borderwidth=1
+)
+
+roi.pack(
+    fill="x",
+    padx=10,
+    pady=10
+)
+
+tk.Button(
+    roi,
+    text="ROI"
+).pack(side="left", padx=5,pady=5)
+
+modo2 = tk.StringVar(value="CAM")
+
+tk.Radiobutton(
+    roi,
+    text="CAM",
+    variable=modo2,
+    value="CAM"
+).pack(side="top")
+
+tk.Radiobutton(
+    roi,
+    text="HOL",
+    variable=modo2,
+    value="HOL"
+).pack(side="bottom")
+
+
+
 
 ventana.mainloop()
