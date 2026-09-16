@@ -269,7 +269,7 @@ tk.Button(
     text="Cámara off"
 ).pack(
     padx=10,
-    pady=(5,5)
+    pady=(1,1)
 )
 
 tk.Label(
@@ -278,7 +278,7 @@ tk.Label(
 ).pack(
     anchor="w",
     padx=10,
-    pady=(5,5)
+    pady=(1,1)
 )
 
 dispositivos= ttk.Combobox(
@@ -292,7 +292,7 @@ dispositivos.current(0)
 dispositivos.pack(
     fill="x",
     padx=10,
-    pady=5
+    pady=1
 )
 
 
@@ -303,7 +303,7 @@ tk.Label(
     text="Formato:"
 ).pack(
     padx=10,
-    pady=(5,5)
+    pady=(1,1)
 )
 
 
@@ -334,7 +334,7 @@ procesador = tk.LabelFrame(
 procesador.pack(
     fill="x",
     padx=10,
-    pady=10
+    pady=1
 )
 
 modo = tk.StringVar(value="CPU")
@@ -365,13 +365,13 @@ roi = tk.Frame(
 roi.pack(
     fill="x",
     padx=10,
-    pady=10
+    pady=1
 )
 
 tk.Button(
     roi,
     text="ROI"
-).pack(side="left", padx=5,pady=5)
+).grid(rowspan=2,column=0,padx=5)
 
 modo2 = tk.StringVar(value="CAM")
 
@@ -380,16 +380,185 @@ tk.Radiobutton(
     text="CAM",
     variable=modo2,
     value="CAM"
-).pack(side="top")
+).grid(row=0,column=1,padx=2)
 
 tk.Radiobutton(
     roi,
     text="HOL",
     variable=modo2,
     value="HOL"
-).pack(side="bottom")
+).grid(row=1, column=1,padx=2)
+
+# Parámetros
+
+parametros = tk.LabelFrame(
+    panel_derecho,
+    text="Parámetros"
+)
+
+parametros.pack(
+    fill="x",
+    padx=10,
+    pady=1
+)
+
+tk.Label(
+    parametros,
+    text="δx:"
+).grid(row=0,column=0,padx=5,pady=1)
+
+tk.Entry(
+    parametros,
+    width=8
+).grid(row=0, column=1, padx=5)
+
+tk.Label(
+    parametros,
+    text="µm"
+).grid(row=0, column=2, padx=5)
 
 
+tk.Label(
+    parametros,
+    text="δy:"
+).grid(row=1,column=0,padx=5,pady=1)
 
+tk.Entry(
+    parametros,
+    width=8
+).grid(row=1, column=1, padx=5)
+
+tk.Label(
+    parametros,
+    text="µm"
+).grid(row=1, column=2, padx=5)
+
+tk.Label(
+    parametros,
+    text="λ:"
+).grid(row=2,column=0,padx=5,pady=1)
+
+tk.Entry(
+    parametros,
+    width=8
+).grid(row=2, column=1, padx=5)
+
+tk.Label(
+    parametros,
+    text="nm"
+).grid(row=2, column=2, padx=5)
+
+tk.Label(
+    parametros,
+    text="z:"
+).grid(row=3,column=0,padx=5,pady=1)
+
+tk.Entry(
+    parametros,
+    width=8
+).grid(row=3, column=1, padx=5)
+
+tk.Label(
+    parametros,
+    text="cm"
+).grid(row=3, column=2, padx=5)
+
+
+#Botones
+
+botones = tk.Frame(
+    panel_derecho,
+    relief = "sunken",
+    borderwidth=1
+)
+
+botones.pack(
+    fill="x",
+    padx=10,
+    pady=5
+)
+
+tk.Button(
+    botones,
+    text="Foto"
+).grid(row=0,column=0,padx=5)
+
+tk.Button(
+    botones,
+    text="Vídeo"
+).grid(row=0,column=1,padx=5)
+
+tk.Entry(
+    botones,
+    width=4
+).grid(row=0,column=2,padx=5)
+
+tk.Button(
+    botones,
+    text="Fresnel",
+    width=19
+).grid(row=1,columnspan=3,padx=5)
+
+filtro_tipo = ttk.Combobox(
+    botones,
+    values=[
+        "Filtro 1",
+        "Filtro 2",
+        "Filtro 3"
+    ],
+    state = "readonly",
+    width=20
+)
+
+filtro_tipo.current(0)
+
+filtro_tipo.grid(
+    row=2,
+    columnspan=3,
+    padx=5
+)
+
+frame_final = tk.Frame(
+    panel_derecho,
+    relief = "sunken",
+    borderwidth=1
+)
+
+frame_final.pack(
+    fill="x",
+    padx=10,
+    pady=1
+)
+
+tk.Button(
+    frame_final,
+    text="Abrir Holograma"
+).grid(row=0,padx=40)
+
+tk.Button(
+    frame_final,
+    text="Guardar",
+    width=13
+).grid(row=1, padx=40)
+
+escudo = Image.open(
+    "/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/escudounipamplona.png"
+)
+
+escudo = escudo.resize((50, 50))
+
+escudo_tk = ImageTk.PhotoImage(escudo)
+
+imagen_escudo = tk.Label(
+    frame_final,
+    image=escudo_tk
+)
+
+imagen_escudo.grid(
+    row=2,
+    column=0,
+    padx=40,
+    pady=10
+)
 
 ventana.mainloop()
