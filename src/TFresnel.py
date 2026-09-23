@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+import cv2
+import numpy as np
+
+def TFresnel(Imagen, Onda_ref, Lambda, deltax0,deltay0,Z0):
+    
+    imagen = cv2.imread(Imagen,cv2.IMREAD_GRAYSCALE)
+
+    N, M = imagen.shape
+    
+    x=np.arange(-M//2,M//2)
+    y=np.arange(-N/2,N//2)
+    
+    X,Y = np.meshgrid(x,y)
+
+    r1 = (X*(Lambda*Z0)/(M*deltax0))**2 + (Y*(Lambda*Z0)/(N*deltay0))**2
+    P = (1/(1j*Lambda*Z0))*(np.exp(1j*2*np.pi*Z0/Lambda))*(np.exp((1j*np.pi/(Lambda*Z0))*r1))
+    r2=(X*deltax0)**2+(Y*deltay0)**2
+    H = np.exp((1j*np.pi/(Lambda*Z0))*r2)
+
+    TFresnel = P*np.fft.fftshift(np.fft.ifft2(imagen*Onda_ref*H))
+    TFresnel = TFresnel/np.max(np.abs(TFresnel))
+
+    TFresnel = np.abs(TFresnel)
+    TFresnel = TFresnel / np.max(TFresnel)
+    TFresnel = TFresnel**0.25 
+
+    return TFresnel
+
+
+

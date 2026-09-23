@@ -2,8 +2,160 @@
 
 import tkinter as tk
 from tkinter import ttk
+from tkinter import filedialog
 from PIL import Image, ImageTk
+import TFresnel as tf
+import matplotlib.pyplot as plt
+from matplotlib.image import imsave
+import cv2
 
+ruta_holo=""
+ruta_recons = "/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/reconstruccion.bmp"
+camara_actual = None
+camara_encendida = False
+
+def detectar_camaras():
+    camaras = []
+
+    for indice in range(10):
+        camara = cv2.VideoCapture(indice)
+
+        if camara.isOpened():
+            camaras.append(str(indice))
+            camara.release()
+    return camaras
+
+def iniciar_camara():
+    global camara_actual, camara_encendida
+
+    if camara_actual is not None:
+        camara_actual.release()
+
+    indice = int(dispositivos.get())
+
+    camara_actual = cv2.VideoCapture(indice)
+
+    if not camara_actual.isOpened():
+        print(f"No se pudo abrir la cámara {indice}")
+        camara_actual = None
+        camara_encendida = False
+        return
+
+    print(f"camara {indice} iniciada")
+
+    camara_encendida= True
+
+    actualizar_camara()
+
+
+def actualizar_camara():
+    global camara_encendida
+
+
+    if not camara_encendida or camara_actual is None:
+        return
+
+    ret, frame = camara_actual.read()
+
+    if ret:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        imagen = Image.fromarray(frame)
+        imagen = imagen.resize((400,250))
+
+        imagen_tk = ImageTk.PhotoImage(imagen)
+
+        camara.configure(image=imagen_tk)
+        camara.image = imagen_tk
+
+    ventana.after(30, actualizar_camara)
+
+
+def apagar_camara():
+    global camara_actual, camara_encendida
+
+    camara_encendida = False
+
+    if camara_actual is not None:
+        camara_actual.release()
+        camara_actual = None
+
+    # Volvemos a mostrar la imagen inicial
+    camara.configure(image=image_tk1)
+    camara.image = image_tk1
+    print("Cámara apagada")
+
+
+
+def mostrar_img_holo(ruta):
+    for widget in holograma_frame.winfo_children():
+        widget.destroy()
+
+    image_pil2 = Image.open(ruta)
+    image_pil2 = image_pil2.resize((400,250))
+    image_tk2 = ImageTk.PhotoImage(image_pil2)
+
+    holograma= tk.Label(
+    holograma_frame,
+    image = image_tk2
+    )
+
+    holograma.grid(
+    row=0,
+    column=0,
+    sticky="nsew",
+    padx=10,
+    pady=10
+    )
+    holograma.image = image_tk2
+
+
+
+def abrir_holograma():
+    global ruta_holo
+    ruta_holo = filedialog.askopenfilename(
+        title="Selecciona una imagen",
+        filetypes=[
+            ("Imágenes","*.png *.jpg *.jpeg *.bmp"),
+            ("Todos los archivos","*.*")
+        ]
+    )
+    mostrar_img_holo(ruta_holo)
+
+
+def mostrar_img_recons(ruta):
+    for widget in reconstruccion_frame.winfo_children():
+        widget.destroy()
+
+    image_pil3 = Image.open(ruta)
+    image_pil3 = image_pil3.resize((400,250))
+    image_tk3 = ImageTk.PhotoImage(image_pil3)
+
+    reconstruccion = tk.Label(
+    reconstruccion_frame,
+    image = image_tk3
+    )
+
+    reconstruccion.grid(
+    row=0,
+    column=0,
+    sticky="nsew",
+    padx=10,
+    pady=10
+    )
+
+    reconstruccion.image = image_tk3
+
+def Apli_transF(dx,dy,λ,z):
+    m_trans = tf.TFresnel(ruta_holo,1,λ*1e-9,dx*1e-6,dy*1e-6,z*1e-2)
+
+    imsave(
+        ruta_recons,
+        m_trans,
+        cmap="gray"
+    )
+
+    mostrar_img_recons(ruta_recons)
 
 # Crear la ventana principal
 ventana = tk.Tk()
@@ -157,23 +309,7 @@ holograma_frame.grid(
 holograma_frame.rowconfigure(0,weight=1)
 holograma_frame.columnconfigure(0,weight=1)
 
-image_pil2 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/Holograma.bmp")
-image_pil2 = image_pil2.resize((400,250))
-image_tk2 = ImageTk.PhotoImage(image_pil2)
 
-holograma= tk.Label(
-    holograma_frame,
-    image = image_tk2
-    
-)
-
-holograma.grid(
-    row=0,
-    column=0,
-    sticky="nsew",
-    padx=10,
-    pady=10
-)
 
 # Cuadro 3
 
@@ -193,22 +329,7 @@ reconstruccion_frame.grid(
 reconstruccion_frame.rowconfigure(0,weight=1)
 reconstruccion_frame.columnconfigure(0,weight=1)
 
-image_pil3 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/Transformada_de_Fresnel.bmp")
-image_pil3 = image_pil3.resize((400,250))
-image_tk3 = ImageTk.PhotoImage(image_pil3)
 
-reconstruccion = tk.Label(
-    reconstruccion_frame,
-    image = image_tk3
-)
-
-reconstruccion.grid(
-    row=0,
-    column=0,
-    sticky="nsew",
-    padx=10,
-    pady=10
-)
 
 # Cuadro 4
 
@@ -266,11 +387,21 @@ panel_derecho.grid_propagate(False)
 
 tk.Button(
     panel_derecho,
-    text="Cámara off"
+    text="Cámara off",
+    command = apagar_camara
 ).pack(
     padx=10,
     pady=(1,1)
 )
+
+tk.Button(
+    panel_derecho,
+    text="Cámara on",
+    command = lambda : iniciar_camara()
+    ).pack(
+        padx=10,
+        pady=(1,1)
+    )
 
 tk.Label(
     panel_derecho,
@@ -283,11 +414,9 @@ tk.Label(
 
 dispositivos= ttk.Combobox(
     panel_derecho,
-    values=["1","2","3"],
     state = "readonly"
 )
 
-dispositivos.current(0)
 
 dispositivos.pack(
     fill="x",
@@ -295,7 +424,17 @@ dispositivos.pack(
     pady=1
 )
 
+camaras = detectar_camaras()
 
+if camaras:
+    dispositivos["values"] = camaras
+    dispositivos.current(0)
+    dispositivos.bind("<<ComboboxSelected>>", lambda event: iniciar_camara())
+
+    iniciar_camara()
+else:
+    dispositivos["values"] = ["No hay cámaras"]
+    dispositivos.current(0)
 # Formato
 
 tk.Label(
@@ -407,10 +546,12 @@ tk.Label(
     text="δx:"
 ).grid(row=0,column=0,padx=5,pady=1)
 
-tk.Entry(
+dx = tk.Entry(
     parametros,
     width=8
-).grid(row=0, column=1, padx=5)
+)
+
+dx.grid(row=0, column=1, padx=5)
 
 tk.Label(
     parametros,
@@ -423,10 +564,11 @@ tk.Label(
     text="δy:"
 ).grid(row=1,column=0,padx=5,pady=1)
 
-tk.Entry(
+dy = tk.Entry(
     parametros,
     width=8
-).grid(row=1, column=1, padx=5)
+)
+dy.grid(row=1, column=1, padx=5)
 
 tk.Label(
     parametros,
@@ -438,10 +580,11 @@ tk.Label(
     text="λ:"
 ).grid(row=2,column=0,padx=5,pady=1)
 
-tk.Entry(
+λ= tk.Entry(
     parametros,
     width=8
-).grid(row=2, column=1, padx=5)
+)
+λ.grid(row=2, column=1, padx=5)
 
 tk.Label(
     parametros,
@@ -453,10 +596,12 @@ tk.Label(
     text="z:"
 ).grid(row=3,column=0,padx=5,pady=1)
 
-tk.Entry(
+z= tk.Entry(
     parametros,
     width=8
-).grid(row=3, column=1, padx=5)
+    )
+
+z.grid(row=3, column=1, padx=5)
 
 tk.Label(
     parametros,
@@ -496,7 +641,8 @@ tk.Entry(
 tk.Button(
     botones,
     text="Fresnel",
-    width=19
+    width=19,
+    command = lambda : Apli_transF(float(dx.get()),float(dy.get()),float(λ.get()),float(z.get()))
 ).grid(row=1,columnspan=3,padx=5)
 
 filtro_tipo = ttk.Combobox(
@@ -532,7 +678,8 @@ frame_final.pack(
 
 tk.Button(
     frame_final,
-    text="Abrir Holograma"
+    text="Abrir Holograma",
+    command = abrir_holograma
 ).grid(row=0,padx=40)
 
 tk.Button(
