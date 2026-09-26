@@ -8,37 +8,126 @@ import TFresnel as tf
 import matplotlib.pyplot as plt
 from matplotlib.image import imsave
 import cv2
+from pathlib import Path
+import numpy as np
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+FIGURES_DIR = BASE_DIR / "figures"
+DATA_DIR = BASE_DIR / "data"
 
 ruta_holo=""
-ruta_recons = "/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/reconstruccion.bmp"
+ruta_recons = FIGURES_DIR / "reconstruccion.bmp"
 camara_actual = None
 camara_encendida = False
+
+#datos actualizados por el filtro_tipo
+
+hologtama_actual = None
+transformada_holo = None
+mascara_roi = None
+roi_canvas = None
+roi_image_tk = None
+roi_inicio = None
+roi_ventana = None  # ventana aparte para seleccionar el ROI (ya no pisa el holograma)
+
+parametros_fresnel = None
+
+def TFresnel_array(imagen, Onda_ref,Lambda,deltax0,deltay0,Z0):
+    if imagen.ndim != 2:
+        raise ValueError("El holograma debe ser una matriz 2D")
+
+    N,M = imagen.shape
+
+    x = np.arange(-M // 2, M // 2)
+    y = np.arange(-N / 2, N / 2)
+
+    X, Y = np.meshgrid(x, y)
+
+    r1 = (
+        (X * (Lambda * Z0) / (M * deltax0)) ** 2
+        + (Y * (Lambda * Z0) / (N * deltay0)) ** 2
+    )
+
+    P = (
+        (1 / (1j * Lambda * Z0))
+        * np.exp(1j * 2 * np.pi * Z0 / Lambda)
+        * np.exp((1j * np.pi / (Lambda * Z0)) * r1)
+    )
+
+    r2 = (X * deltax0) ** 2 + (Y * deltay0) ** 2
+    H = np.exp((1j * np.pi / (Lambda * Z0)) * r2)
+
+    TFresnel = P * np.fft.fftshift(
+        np.fft.ifft2(imagen * Onda_ref * H)
+    )
+
+    maximo = np.max(np.abs(TFresnel))
+    if maximo > 0:
+        TFresnel = TFresnel / maximo
+
+    TFresnel = np.abs(TFresnel)
+
+    maximo = np.max(TFresnel)
+    if maximo > 0:
+        TFresnel = TFresnel / maximo
+
+    TFresnel = TFresnel ** 0.25
+
+    return TFresnel
+
 
 def detectar_camaras():
     camaras = []
 
     for indice in range(10):
-        camara = cv2.VideoCapture(indice)
+        camara = cv2.VideoCapture(indice,cv2.CAP_V4L2)
 
         if camara.isOpened():
-            camaras.append(str(indice))
+            ret, frame = camara.read()
+
+            if ret:
+                camaras.append(str(indice))
+
             camara.release()
+
     return camaras
+
 
 def iniciar_camara():
     global camara_actual, camara_encendida
 
     if camara_actual is not None:
         camara_actual.release()
+        camara_actual = None
 
-    indice = int(dispositivos.get())
+    try:
+        indice = int(dispositivos.get())
+    except ValueError:
+        print("No hay cámara seleccionada")
+        return
 
-    camara_actual = cv2.VideoCapture(indice)
+    camara_actual = cv2.VideoCapture(indice,cv2.CAP_V4L2)
 
     if not camara_actual.isOpened():
         print(f"No se pudo abrir la cámara {indice}")
         camara_actual = None
         camara_encendida = False
+
+        camara.configure(image=image_tk1)
+        camara.image = image_tk1
+        return
+
+    ret, frame = camara_actual.read()
+
+    if not ret:
+        print(f"La cámara {indice} fue detectada pero no entrega imágenes")
+
+        camara_actual.release()
+        camara_actual = None
+        camara_encendida = False
+
+        camara.configure(image=image_tk1)
+        camara.image = image_tk1
         return
 
     print(f"camara {indice} iniciada")
@@ -146,16 +235,324 @@ def mostrar_img_recons(ruta):
 
     reconstruccion.image = image_tk3
 
+def roi_inicio_evento(event):
+    global roi_inicio
+
+    roi_inicio = (event.x,event.y)
+
+    roi_canvas.delete("roi")
+
+
+def roi_movimiento_evento(event):
+    if roi_inicio is None:
+        return
+
+    x0,y0 = roi_inicio
+    x1,y1 = event.x,event.y 
+
+    roi_canvas.delete("roi")
+
+    roi_canvas.create_rectangle(
+        x0,
+        y0,
+        x1,
+        y1,
+        outline="red",
+        width=2,
+        tags="roi"
+    )
+
+
+def roi_fin_evento(event):
+    global mascara_roi, roi_inicio
+    if roi_inicio is None:
+        return 
+
+    x0,y0 = roi_inicio 
+    x1,y1 = event.x,event.y 
+
+    x_min = min(x0,x1)
+    x_max = max(x0,x1)
+
+    y_min = min(y0,y1)
+    y_max = max(y0,y1)
+
+    if x_max - x_min < 2 or y_max - y_min < 2:
+        print("ROI demasiado pequeña")
+        roi_inicio = None
+        return
+
+    filas, columnas = transformada_holo.shape
+
+    mascara_roi = np.zeros(
+        (filas,columnas),
+        dtype = np.float64
+    )
+
+    escala_x = columnas/400
+    escala_y = filas/250
+
+    ix_min = int(x_min*escala_x)
+    ix_max = int(x_max * escala_x)
+
+    iy_min = int(y_min * escala_y)
+    iy_max = int(y_max * escala_y)
+
+    # Limitar coordenadas
+    ix_min = max(0, min(columnas, ix_min))
+    ix_max = max(0, min(columnas, ix_max))
+
+    iy_min = max(0, min(filas, iy_min))
+    iy_max = max(0, min(filas, iy_max))
+
+    mascara_roi[
+        iy_min:iy_max,
+        ix_min:ix_max
+    ] = 1
+
+    print(
+        f"ROI seleccionada: "
+        f"x={ix_min}:{ix_max}, "
+        f"y={iy_min}:{iy_max}"
+    )
+
+    aplicar_filtro_1()
+
+    roi_inicio = None
+
+
+def aplicar_filtro_1():
+    if transformada_holo is None:
+        print("No existe transformada de Fourier")
+        return
+
+    if mascara_roi is None:
+        print("No existe una ROI")
+        return 
+
+    NF = transformada_holo*mascara_roi
+
+    holograma_filtrado = np.fft.ifft2(NF)
+
+    dx = parametros_fresnel["dx"]
+    dy = parametros_fresnel["dy"]
+    λ = parametros_fresnel["lambda"]
+    z = parametros_fresnel["z"]
+
+    reconstruccion_filtrada = TFresnel_array(
+        holograma_filtrado,
+        1,
+        λ,
+        dx,
+        dy,
+        z
+    )
+
+    mostrar_img_array(
+        filtrado_frame,
+        reconstruccion_filtrada
+    )
+    
+
+def iniciar_filtro_1():
+    global roi_canvas
+    global roi_image_tk
+    global roi_inicio
+    global roi_ventana
+
+    if transformada_holo is None:
+        print("Primero debe ejecutar Fresnel")
+        return
+
+    roi_inicio = None
+
+    espectro = np.log1p(np.abs(transformada_holo))
+    # Normalizacion
+
+    espectro = cv2.normalize(
+        espectro,
+        None,
+        0,
+        255,
+        cv2.NORM_MINMAX
+    )
+
+    espectro = espectro.astype(np.uint8)
+
+    imagen = Image.fromarray(espectro)
+
+    imagen = imagen.resize((400,250))
+
+    roi_image_tk = ImageTk.PhotoImage(imagen)
+
+    # Cerramos una ventana de ROI anterior si quedó abierta, en vez de
+    # destruir el contenido de holograma_frame (eso era lo que borraba
+    # la imagen del holograma).
+    if roi_ventana is not None:
+        try:
+            if roi_ventana.winfo_exists():
+                roi_ventana.destroy()
+        except tk.TclError:
+            pass
+
+    roi_ventana = tk.Toplevel(ventana)
+    roi_ventana.title("Seleccione la región del espectro (ROI)")
+    roi_ventana.resizable(False, False)
+
+    roi_canvas = tk.Canvas(
+        roi_ventana,
+        width=400,
+        height=250,
+        highlightthickness=0
+    )
+
+    roi_canvas.pack(
+        padx=10,
+        pady=10
+    )
+
+    roi_canvas.create_image(
+        0,
+        0,
+        anchor="nw",
+        image=roi_image_tk
+    )
+
+    roi_canvas.bind(
+        "<ButtonPress-1>",
+        roi_inicio_evento
+    )
+
+    roi_canvas.bind(
+        "<B1-Motion>",
+        roi_movimiento_evento
+    )
+
+    roi_canvas.bind(
+        "<ButtonRelease-1>",
+        roi_fin_evento
+    )
+
+    print("Seleccione con el mouse la región del espectro que desea conservar.")
+
+
 def Apli_transF(dx,dy,λ,z):
-    m_trans = tf.TFresnel(ruta_holo,1,λ*1e-9,dx*1e-6,dy*1e-6,z*1e-2)
+    global holograma_actual
+    global transformada_holo
+    global parametros_fresnel
+    global mascara_roi
+
+
+    if not ruta_holo:
+        print("No hay ningún holograma cargado")
+        return
+
+    holograma_actual = cv2.imread(
+        str(ruta_holo),
+        cv2.IMREAD_GRAYSCALE
+    )
+
+    if holograma_actual is None:
+        print("No se pudo leer el holograma")
+        return
+
+    holograma_actual = holograma_actual.astype(np.float64)
+
+    holograma_actual -= np.mean(holograma_actual)
+
+    transformada_holo = np.fft.fftshift(
+        np.fft.fft2(holograma_actual)
+    )
+
+
+    parametros_fresnel = {
+        "dx":dx*1e-6,
+        "dy":dy*1e-6,
+        "lambda":λ*1e-9,
+        "z":z*1e-2
+    }
+
+
+    m_trans = tf.TFresnel(
+        ruta_holo,
+        1,
+        λ*1e-9,
+        dx*1e-6,
+        dy*1e-6,
+        z*1e-2
+    )
 
     imsave(
-        ruta_recons,
+        str(ruta_recons),
         m_trans,
         cmap="gray"
     )
 
     mostrar_img_recons(ruta_recons)
+
+    mascara_roi = None
+
+    if filtro_tipo.get() == "Filtro 1":
+        iniciar_filtro_1()
+
+
+def cambiar_filtro(event=None):
+    filtro=filtro_tipo.get()
+
+    if filtro == "Filtro 1":
+
+        if transformada_holo is None:
+            print("Primero debe ejecutar Fresnel")
+            return 
+
+        iniciar_filtro_1()
+    elif filtro == "Filtro 2":
+        print("Filtro 2 toadavía no implementado")
+    elif filtro == "Filtro 3":
+        print("Filtro 3 todavía no implementado")
+
+
+def mostrar_img_array(frame, imagen):
+    """Muestra un array 2D (ya normalizado en [0,1], p.ej. salida de
+    TFresnel_array) como imagen dentro de `frame`. No vuelve a aplicar
+    corrección gamma porque TFresnel_array ya la aplica; hacerlo de nuevo
+    saturaba/lavaba la imagen filtrada."""
+
+    for widget in frame.winfo_children():
+        widget.destroy()
+
+    imagen = np.abs(imagen)
+
+    maximo = np.max(imagen)
+
+    if maximo > 0:
+        imagen = imagen / maximo
+
+    imagen = (imagen * 255).clip(0, 255).astype(np.uint8)
+
+    imagen_pil = Image.fromarray(imagen)
+
+    imagen_pil = imagen_pil.resize((400, 250))
+
+    imagen_tk = ImageTk.PhotoImage(imagen_pil)
+
+    etiqueta = tk.Label(
+        frame,
+        image=imagen_tk
+    )
+
+    etiqueta.grid(
+        row=0,
+        column=0,
+        sticky="nsew",
+        padx=10,
+        pady=10
+    )
+
+    etiqueta.image = imagen_tk
+
+
+
 
 # Crear la ventana principal
 ventana = tk.Tk()
@@ -272,7 +669,7 @@ camara_frame.grid(
 camara_frame.rowconfigure(0, weight=1)
 camara_frame.columnconfigure(0, weight=1)
 
-image_pil1 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/profile.jpg")
+image_pil1 = Image.open(FIGURES_DIR/"profile.jpg")
 image_pil1=image_pil1.resize((400,250))
 image_tk1 = ImageTk.PhotoImage(image_pil1)
 
@@ -349,22 +746,7 @@ filtrado_frame.grid(
 filtrado_frame.rowconfigure(0,weight=1)
 filtrado_frame.columnconfigure(0,weight=1)
 
-image_pil4 = Image.open("/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/Transformada_de_Fresnel_Filtrado.bmp")
-image_pil4 = image_pil4.resize((400,250))
-image_tk4 = ImageTk.PhotoImage(image_pil4)
 
-filtrado = tk.Label(
-    filtrado_frame,
-    image = image_tk4
-)
-
-filtrado.grid(
-    row=0,
-    column=0,
-    sticky="nsew",
-    padx=10,
-    pady=10
-)
 
 #Panel Derecho
 
@@ -430,8 +812,6 @@ if camaras:
     dispositivos["values"] = camaras
     dispositivos.current(0)
     dispositivos.bind("<<ComboboxSelected>>", lambda event: iniciar_camara())
-
-    iniciar_camara()
 else:
     dispositivos["values"] = ["No hay cámaras"]
     dispositivos.current(0)
@@ -509,7 +889,8 @@ roi.pack(
 
 tk.Button(
     roi,
-    text="ROI"
+    text="ROI",
+    command = iniciar_filtro_1
 ).grid(rowspan=2,column=0,padx=5)
 
 modo2 = tk.StringVar(value="CAM")
@@ -664,6 +1045,12 @@ filtro_tipo.grid(
     padx=5
 )
 
+filtro_tipo.bind(
+    "<<ComboboxSelected>>",
+    cambiar_filtro
+)
+
+
 frame_final = tk.Frame(
     panel_derecho,
     relief = "sunken",
@@ -689,7 +1076,7 @@ tk.Button(
 ).grid(row=1, padx=40)
 
 escudo = Image.open(
-    "/home/juan/Proyecto_holo/Proyecto_Holografia_2026-2_UP/figures/escudounipamplona.png"
+    FIGURES_DIR/"escudounipamplona.png"
 )
 
 escudo = escudo.resize((50, 50))
